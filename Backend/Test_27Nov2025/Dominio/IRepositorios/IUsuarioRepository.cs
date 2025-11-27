@@ -4,17 +4,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Contratos.General;
 
 namespace Dominio.IRepositorios
 {
     public interface IUsuarioRepository
     {
         // CRUD básico
+        Task<ResultadoDto<Usuario?>> GetUser(int id, CancellationToken ct = default);
+        Task<ResultadoDto<IReadOnlyList<Usuario?>>> GetUsers(CancellationToken ct = default);
+        Task<ResultadoDto<Usuario?>> CreateUser(Usuario obj, CancellationToken ct = default);
+        Task<ResultadoDto<Usuario?>> UpdateUser(Usuario obj, CancellationToken ct = default);
+        Task<ResultadoDto<Usuario?>> DeleteUser(int id, CancellationToken ct = default);
+        Task<ResultadoDto<Usuario?> > GetByTelefono(string telefono, CancellationToken ct = default);
 
-        Task<Usuario?> GetUser(int id, CancellationToken ct = default);
-        Task<IReadOnlyList<Usuario>> GetUsers(int? id, string? nombre, CancellationToken ct = default);
-        Task CreateUser(Usuario obj, CancellationToken ct = default);
-        Task UpdateUser(Usuario obj, CancellationToken ct = default);
-        Task DeleteUser(int id, CancellationToken ct = default);
     }
 }
