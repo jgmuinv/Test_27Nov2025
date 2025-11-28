@@ -141,7 +141,7 @@ public class UsuarioService : IUsuarioService
     private string GenerateToken(Usuario user)
     {
         var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key missing")));
+            Encoding.UTF8.GetBytes(_config["Jwt:secret"] ?? throw new InvalidOperationException("Jwt:secret missing")));
 
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

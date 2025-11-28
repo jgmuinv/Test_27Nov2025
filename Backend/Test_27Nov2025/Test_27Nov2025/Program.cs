@@ -30,36 +30,34 @@ builder.Services.AddScoped<IDbConnection>(sp =>
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Test_27Nov2025", Version = "v1" });
-
-    // Definición de esquema de seguridad tipo Bearer
-    var securityScheme = new OpenApiSecurityScheme
+    // Configuración de seguridad JWT
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Name = "Authorization",
-        Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n" +
-                      "Escribe 'Bearer {tu token}'",
-        In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        Reference = new OpenApiReference
-        {
-            Type = ReferenceType.SecurityScheme,
-            Id = "Bearer"
-        }
-    };
+        In = ParameterLocation.Header,
+        Name = "Authorization",
+        Description = "Autenticación JWT. En Authorize ingrese SOLO el token (sin 'Bearer')."
+    });
 
-    c.AddSecurityDefinition("Bearer", securityScheme);
-
-    // Requisito global: todos los endpoints usan este esquema salvo que se marquen como [AllowAnonymous]
-    var securityRequirement = new OpenApiSecurityRequirement
+    // Requerimiento de seguridad global
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { securityScheme, Array.Empty<string>() }
-    };
-
-    c.AddSecurityRequirement(securityRequirement);
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
 });
 
 // Infraestructura / repositorios
@@ -73,14 +71,15 @@ builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddScoped<IPasswordHasher<Usuario>, PasswordHasher<Usuario>>();
 
 // JWT
-var key = Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!);
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var issuer = jwtSection.GetValue<string>("Issuer") ?? string.Empty;
+var audience = jwtSection.GetValue<string>("Audience") ?? string.Empty;
+var secret = jwtSection.GetValue<string>("Secret") ?? string.Empty;
+var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+//var key = Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!);
 
 builder.Services
-    .AddAuthentication(options =>
-    {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    })
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -88,32 +87,19 @@ builder.Services
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = configuration["Jwt:Issuer"],
-            ValidAudience = configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(key),
-            ClockSkew = TimeSpan.Zero
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = key,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
 
+        // Solo logging opcional, SIN modificar context.Token
         options.Events = new JwtBearerEvents
         {
-            OnMessageReceived = context =>
-            {
-                var auth = context.Request.Headers["Authorization"].ToString();
-                Console.WriteLine($"AUTH HEADER RAW: '{auth}'");
-
-                // Forzamos el token a partir del header
-                if (!string.IsNullOrEmpty(auth) &&
-                    auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.Token = auth.Substring("Bearer ".Length).Trim();
-                    Console.WriteLine($"TOKEN SET: '{context.Token}'");
-                }
-
-                return Task.CompletedTask;
-            },
             OnAuthenticationFailed = context =>
             {
-                Console.WriteLine("JWT error: " + context.Exception.Message);
+                Console.WriteLine("JWT error: " + context.Exception.Message + " Inner: "+ context.Exception.InnerException);
                 return Task.CompletedTask;
             }
         };
@@ -131,7 +117,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+app.UseStaticFiles();
+//app.UseSerilogRequestLogging();
 app.UseAuthentication();
 app.UseAuthorization();
 
